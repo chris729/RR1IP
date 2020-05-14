@@ -1,6 +1,6 @@
-#include "imp_opt.h"
+#include "optimised2019.h"
 
-//sudo g++ -Wall `pkg-config --cflags opencv` imp_opt.cpp `pkg-config --libs opencv` -o imp -pthread
+//sudo g++ -Wall `pkg-config --cflags opencv` optimised2019.cpp `pkg-config --libs opencv` -o imp -pthread
 
 void im_mean(vector<Mat> const &im, double const &in,int col){
 	double &out = const_cast<double &>(in);
