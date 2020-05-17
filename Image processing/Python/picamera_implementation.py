@@ -6,24 +6,30 @@ import matplotlib.pyplot as plt
 import picamera
 import numpy as np
 from scipy import signal
+from multiprocessing import Pool
 
 # normalize to 8-bit greyscale
 def gs(im):
     im = im-im.min()
     im = 255*im/im.max()
     return np.uint8(im)
+
+# function that does a major component of the image processing
+def improcess(logY,f,fr):
+    Edges = np.array([signal.convolve(im,f,mode='same') for im in logY])
+    m = np.median(Edges,0)
+    im = signal.convolve(m,fr,'same')
+    return im
     
-t1 = time.time()
 # constants
-imscale = 3
+imscale = 5
 w = 32*imscale
 h = 32*imscale
 p = 2
 bufferSize = 10
-
-video_port = False
+video_port = True
 burst = True
-
+if video_port==True: burst=False
 
 # filter filter kernals
 dataType = np.float32
@@ -37,38 +43,10 @@ fyr = np.array([[-1],
                 [ 1], 
                 [ 0]],dtype=dataType)
 
- 
-# init camera and settings 
-camera = picamera.PiCamera()
-camera.resolution = (w,h)
-camera.zoom = (0.4,0.4,0.6,0.6)
-# take a rapid sequence using video port
-buffer = [np.empty((h * w * 3), dtype=np.uint8) for _ in range(bufferSize)] 
 
-print("Image equence starting..........")
-camera.start_preview()
-camera.capture_sequence(buffer, format='yuv', use_video_port=video_port, burst=burst)
-camera.stop_preview()
-print("Sequence captured, calculating edges")
-
-# extract Y component and pad with zeros
-Y = [im[:w*h].reshape((h,w)) for im in buffer]
-Y = [np.pad(im,p,'constant',constant_values=0) for im in Y]
-logY = [np.log1p(im) for im in Y]
-
-# take the edge maps of the images
-xEdges = np.array([signal.convolve2d(im,fx,mode='same') for im in logY])
-yEdges = np.array([signal.convolve2d(im,fy,mode='same') for im in logY])
-
-# get the median of the images for shadowless version
-mx = np.median(xEdges,0)
-my = np.median(yEdges,0)
-
-# now we need to re-intergrate the image using the method shown by Weiss
-
-# --------- this can and will be computed offline --------------
-a = np.zeros((2*(h+2*p) , 2*(w+2*p)), dtype=dataType)
-x,y = mx.shape[0],mx.shape[1]
+# --------- finding the re-integration matrix --------------
+x,y = h+2*p,w+2*p
+a = np.zeros((2*x , 2*y), dtype=dataType)
 a[x+1,y+1] = 4
 a[x+2,y+1] = -1
 a[x-0,y+1] = -1
@@ -80,16 +58,50 @@ A[index]=1
 G = 1/A
 G[index]=0
 g = np.real(np.fft.ifft2(G))
-# --------- this can and will be computed offline --------------
+# ----------------------
 
+# init camera and settings 
+camera = picamera.PiCamera()
+camera.resolution = (w,h)
+camera.zoom = (0.4,0.4,0.6,0.6)
+buffer = [np.empty((h * w * 3), dtype=np.uint8) for _ in range(bufferSize)] 
 
-# reconstruct the shadowless image
-print("Median edges calculated, reconstructing image")
+# -------------------------------- START OF IMAGE PROCESSING ----------------------
 
-imx = signal.convolve2d(mx,fxr,'same')
-imy = signal.convolve2d(my,fyr,'same')
+# take a rapid sequence using video port
+print("Image sequence starting..........")
+t1 = time.time()
+#camera.start_preview()
+camera.capture_sequence(buffer, format='yuv', use_video_port=video_port, burst=burst)
+#camera.stop_preview()
+print("Sequence captured, calculating edges")
+
+# extract Y (grey scale) component and pad with zeros
+Y = [im[:w*h].reshape((h,w)) for im in buffer]
+Y = [np.pad(im,p,'constant',constant_values=0) for im in Y]
+logY = [np.log1p(im) for im in Y]
+
+# tt1 = time.time()
+#do the x and y components in parallel
+with Pool(2) as pool:
+    imxp = pool.apply_async(improcess,(logY,fx,fxr))
+    imyp = pool.apply_async(improcess,(logY,fy,fyr))
+    imx = imxp.get()
+    imy = imyp.get()
+
+# tt2 = time.time()
+# print("Improcess || time taken: " + str(tt2-tt1) + "s")
+
+# sequencially
+# tt1 = time.time()
+# imx = improcess(logY,fx,fxr)
+# imy = improcess(logY,fy,fyr)
+# tt2 = time.time()
+# print("Improcess >> time taken: " + str(tt2-tt1) + "s")
+
 im = imx+imy
-logR = signal.convolve2d(im,g,'same')
+# this convolution takes the longest, g is very large
+logR = signal.convolve(im,g,'same')
 
 # find the illuminance image
 logL = logY[0] - logR

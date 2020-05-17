@@ -1,4 +1,4 @@
-#include "improcess_original.h"
+#include "original2019.h"
 
 
 #include <chrono>
@@ -46,7 +46,7 @@ Mat improcess(char *location) {
 	imageRGB[2] = imageRGB[2] * KR;
 
 	merge(imageRGB, src);
-    src = src(Rect(src.cols / 2.7, src.rows / 4, src.cols / 4, src.rows / 1.85));
+    //src = src(Rect(src.cols / 2.7, src.rows / 4, src.cols / 4, src.rows / 1.85));
 	Mat finalmask = ImageProcess_func(src);
  	
 	return finalmask;
@@ -262,7 +262,7 @@ Mat convert2Binary(Mat &gray, int method) {
 	
 }
 
-//sudo g++ `pkg-config --cflags opencv` improcess_original.cpp `pkg-config --libs opencv` -o improcess_original
+//sudo g++ `pkg-config --cflags opencv` original2019.cpp `pkg-config --libs opencv` -o improcess_original
 
 int main(int argc, char **argv) {
 	char *image_path = (char*) "/home/pi/Downloads/input.JPG";
