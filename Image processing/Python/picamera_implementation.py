@@ -22,7 +22,7 @@ def improcess(logY,f,fr):
     return im
     
 # constants
-imscale = 5
+imscale = 8
 w = 32*imscale
 h = 32*imscale
 p = 2
@@ -71,9 +71,9 @@ buffer = [np.empty((h * w * 3), dtype=np.uint8) for _ in range(bufferSize)]
 # take a rapid sequence using video port
 print("Image sequence starting..........")
 t1 = time.time()
-#camera.start_preview()
+camera.start_preview()
 camera.capture_sequence(buffer, format='yuv', use_video_port=video_port, burst=burst)
-#camera.stop_preview()
+camera.stop_preview()
 print("Sequence captured, calculating edges")
 
 # extract Y (grey scale) component and pad with zeros
@@ -108,21 +108,19 @@ logL = logY[0] - logR
 
 # create the shadow map
 smap = 255-gs(logL)
-smap = smap*(smap>180)
+#smap = smap*(smap>180)
 
 t2 = time.time()
 print("Time taken: " + str(t2-t1) + "s")
 
+camera.close()
 fig = plt.figure()
 fig.add_subplot(1,3,1)
 plt.imshow(Y[0], cmap=plt.cm.gray)
-
 fig.add_subplot(1,3,2)
 plt.imshow(np.exp(logR), cmap=plt.cm.gray)
-
 fig.add_subplot(1,3,3)
 plt.imshow(255-gs(logL), cmap=plt.cm.gray)
-
 plt.show()
 
 
