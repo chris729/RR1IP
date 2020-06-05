@@ -6,13 +6,13 @@ fx = [0 1 -1]; fy = [0; 1; -1];
 
 fyr = flipud(fy); fxr = fliplr(fx);
 path = 'C:\Users\cthom\OneDrive - The University of Melbourne\Documents\University\Capstone\shadow pics';
-path = dir([path '\' 'hevish\*.pgm']); n = numel(path);
+path = dir([path '\' 'iris\*.pgm']); n = numel(path);
 im=2;
 images = {}; logImages = {};
 
-for i = 1:n/2
+for i = 1:n
     image = imread([path(i).folder '\' path(i).name]);
-    image = imresize(image, 0.7);
+    image = imresize(image,0.7);
     image = padarray(image, [pad pad]); images{i} = image;
     %index = image == 0; image(index) = 1;
     image = log(double(image+1)); logImages{i} = image;
@@ -58,11 +58,12 @@ for i = 1:numel(counts)
 end
 thresh = inv.*uint8(inv>binLocations(i));
 
+
 subplot(1,4,1); imshow(gs(images{1}))
 subplot(1,4,2); imshow(gs(exp(logR)))
 subplot(1,4,3); imshow(gs(logL))
 subplot(1,4,4); imshow(gs(thresh))
-
+% imresize(thresh, [8 12])
 
 % subplot(5,4,1); imshow(gs(images{1}))
 % subplot(5,4,2); imshow(gs(logImages{1}))
@@ -90,8 +91,37 @@ subplot(1,4,4); imshow(gs(thresh))
 % subplot(5,4,20); imshow(abs(ry))
 
 
+ figure(99);
+% 
+count = 1;
+for i = [1,3,5,7,9,11,13,15]
+    a = abs(reshape(xEdges(:,i),dims));
+    subplot(2,8,count); imshow(a(290:480,90:210))
+    b = abs(reshape(yEdges(:,i),dims));
+    subplot(2,8,count+8); imshow(b(290:480,90:210))
+count = count+1;
+end
+
+dxplot = abs(rx);
+dyplot = abs(ry);
+r = gs(exp(logR));
+figure(100);
+subplot(1,3,1); imshow(dxplot(290:480,90:210))
+subplot(1,3,2); imshow(dyplot(290:480,90:210))
+subplot(1,3,3); imshow(r(290:480,90:210))
 
 
+subplot(1,2,1); imshow(images{1})
+subplot(1,2,2); imshow(r)
 
 
+n = thresh(180:420,10:280);
+I = images{1};
+I = I(180:420,10:280);
+A = double(imresize(n, [8 12]));
+fprintf([repmat(sprintf('%% %dd',max(floor(log10(abs(A(:)))))+2+any(A(:)<0)),1,size(A,2)) '\n'],A');
+B = gs(A);
+subplot(1,3,1); imshow(I)
+subplot(1,3,2); imshow(n)
+subplot(1,3,3); imshow(B)
 
