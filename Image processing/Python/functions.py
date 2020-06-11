@@ -1,23 +1,26 @@
 # for testing
 import time
-import matplotlib.pyplot as plt
 
 # required
-import picamera
 import numpy as np
 from scipy import signal
-from multiprocessing import Pool
-import functions as fun
-from PIL import Image
+import RPi.GPIO as GPIO
+from smbus2 import SMBus, i2c_msg 
+from PCA_Constants import *
 
-def capture_seq(buffer):
+# consts
+OE_PIN = 7
+
+def capture_seq(camera,buffer,settings):
     # take a rapid sequence using video port
-    print("Image sequence starting..........")
+    
     t1 = time.time()
-    camera.start_preview()
-    camera.capture_sequence(buffer, format='yuv', use_video_port=video_port, burst=burst)
-    camera.stop_preview()
-    print("Sequence captured, calculating edges")
+    #camera.start_preview()
+    print("Image sequence starting: {}".format(t1))
+    camera.capture_sequence(buffer, format='yuv', use_video_port=settings.video_port, burst=settings.burst)
+    #camera.stop_preview()
+    t2 = time.time()
+    print("time taken for image sequence: {}'s".format(t2-t1))
     return buffer
     
 # normalize to 8-bit greyscale
@@ -47,22 +50,86 @@ def calculate_g(h,w,p,dataType):
     A[index]=1
     G = 1/A
     G[index]=0
-    g = np.real(np.fft.ifft2(G)) 
-   
-# waits for camera to be pressed
-def wait():
+    g = np.real(np.fft.ifft2(G))
+    return g
+
+# Enabling the PCA_Driver 
+def enable_PCA():
+    GPIO.output(OE_PIN,0)
+
+# Disabling the PCA_Driver
+def disable_PCA():
+    GPIO.output(OE_PIN,1)
+
+def initPCADriver(address,bus):
+    # Initializing GPIO Stuff    
+    if (not writePCARegister(address,MODE1,MODE1_DATA,bus)): 
+        print("Test connections")
+        return False
+    if (not writePCARegister(address,PWMALL,0x00,bus)):
+        print("Test connections")
+        return False
+    if (not writePCARegister(address,IREFALL,IREFALL_4MA,bus)):
+        print("Test connections")
+        return False
+    else: return True
     
+def init_LED_array(bus):
+    GPIO.setmode(GPIO.BCM)
+    GPIO.setup(OE_PIN,GPIO.OUT)
+    disable_PCA()
+    for chip in [ADDR1,ADDR2,ADDR3,ADDR4]:
+        if (not initPCADriver(chip,bus)):
+            print("driver: {} init failed\n".format(chip))
+    
+    #if here then all settings wrote successfully
+    # write them all to 0
+    for chip in [ADDR1,ADDR2,ADDR3,ADDR4]:
+        for i in range(24):
+            writePCARegister(chip,0x0A+i,0,bus)
+            
+    enable_PCA()
+
+def writePCARegister(chipAddr, regAddr, data,bus): 
+    cmd = [regAddr|CTRL_NO_AIF, data]
+    msg = i2c_msg.write(chipAddr|ADDR_WRITE,cmd)
+    bus.i2c_rdwr(msg)
     return True
     
 # sweeps led array light to get light variation    
-def sweep_LED():
-
+def sweep_LED(intensity,bus):
+    time.sleep(0.05)
+    t1 = time.time()
+    print("sweep starting: {}".format(t1))
+    light_column(0,intensity,bus)
+    for i in range(1,12):
+        light_column(i-1,0,bus)
+        light_column(i,intensity,bus)
+        time.sleep(0.01)
+    light_column(i,0,bus)
+    t2 = time.time()
+    print("time taken for sweep: {}'s".format(t2-t1))
     return True
+
+def light_column(x1,intensity,bus):
+        x2 = x1+12
+        for chip in [ADDR1,ADDR2,ADDR3,ADDR4]:
+            writePCARegister(chip,0x0A+x1,intensity,bus)
+            writePCARegister(chip,0x0A+x2,intensity,bus)
 
 # drives the shadow map to LED for shadow removal    
 def drive_LED(smap):
 
     return True
+
+
+# waits for camera to be pressed
+def wait():
+    yes = None
+    while yes != "y":
+        yes = input("Run? y for yes, crt-c for no \n")
+    return True
+
 
 # captures the final image
 def capture_image():
