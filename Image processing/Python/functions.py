@@ -118,8 +118,25 @@ def light_column(x1,intensity,bus):
             writePCARegister(chip,0x0A+x2,intensity,bus)
 
 # drives the shadow map to LED for shadow removal    
-def drive_LED(smap):
-
+def drive_LED(smap,bus):
+    for i,row in enumerate(smap):
+        if i < 2:
+            chip = ADDR4
+        elif i < 4:
+            chip = ADDR3
+        elif i < 6:
+            chip = ADDR2
+        elif i < 8:
+            chip = ADDR1
+            
+        if i % 2:
+            o = 12
+        else:
+            o = 0
+            
+        for j,val in enumerate(row):
+            writePCARegister(chip,0x09+11+j-o,val,bus)
+            
     return True
 
 
