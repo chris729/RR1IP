@@ -14,15 +14,10 @@ import os
 OE_PIN = 7
 
 def capture_seq(camera,buffer,settings):
-    # take a rapid sequence using video port
-    
     t1 = time.time()
-    #camera.start_preview()
-    print("Image sequence starting: {}".format(t1))
     camera.capture_sequence(buffer, format='yuv', use_video_port=settings.video_port, burst=settings.burst)
-    #camera.stop_preview()
     t2 = time.time()
-    print("time taken for image sequence: {}'s".format(t2-t1))
+    print("Time for capturing image sequence: {}'s".format(t2-t1))
     return buffer
     
 # normalize to 8-bit greyscale
@@ -65,15 +60,21 @@ def disable_PCA():
 
 def initPCADriver(address,bus):
     # Initializing GPIO Stuff    
-    if (not writePCARegister(address,MODE1,MODE1_DATA,bus)): 
-        print("Test connections")
-        return False
-    if (not writePCARegister(address,PWMALL,0x00,bus)):
-        print("Test connections")
-        return False
-    if (not writePCARegister(address,IREFALL,IREFALL_4MA,bus)):
-        print("Test connections")
-        return False
+    try:
+        writePCARegister(address,MODE1,MODE1_DATA,bus)
+    except OSError:
+        print("Test Array connections")
+    try:
+        writePCARegister(address,PWMALL,0x00,bus)
+    except OSError:
+        print("Test Array connections")
+        
+    try:
+        writePCARegister(address,IREFALL,IREFALL_4MA,bus)
+        
+    except OSError:
+        print("Test Array connections")
+        
     else: return True
     
 def init_LED_array(bus):
@@ -102,7 +103,6 @@ def writePCARegister(chipAddr, regAddr, data,bus):
 def sweep_LED(intensity,bus):
     time.sleep(0.05)
     t1 = time.time()
-    print("sweep starting: {}".format(t1))
     light_column(0,intensity,bus)
     for i in range(1,12):
         light_column(i,intensity,bus)
@@ -112,7 +112,6 @@ def sweep_LED(intensity,bus):
         light_column(i,0,bus)
         time.sleep(0.01)
     t2 = time.time()
-    print("time taken for sweep: {}'s".format(t2-t1))
     return True
 
 def light_column(x1,intensity,bus):
@@ -139,16 +138,25 @@ def drive_LED(smap,bus):
             o = 0
             
         for j,val in enumerate(row):
-            writePCARegister(chip,0x09+11+j-o,val,bus)
+            writePCARegister(chip,0x09+23-j-o,val,bus)
             
     return True
 
 
-# waits for camera to be pressed
+# waits for camera to be pressed, at the moment is input from keyboard
 def wait():
-    yes = None
-    while yes != "y":
-        yes = input("Run? y for yes, crt-c for no \n")
+#     while(1):
+#         input("Hit enter to run...")
+#         break
+
+    # 5 second counter
+    t1 = time.time()
+    count = 0
+    while time.time() < t1+5:
+        count+=1
+        time.sleep(1)
+        print(count)
+    
     return True
 
 

@@ -1,5 +1,6 @@
 # for testing
 import time
+t1 = time.time()
 import matplotlib.pyplot as plt
 
 # required
@@ -11,21 +12,29 @@ from multiprocessing import Pool
 import functions as fun
 from smbus2 import SMBus, i2c_msg
 import gphoto2 as gp
+import os
 
-t1 = time.time()
+# kill off any gphoto process from startup
+os.system('pkill -f gphoto2')
+# setting config is much easier with CLI than python interface so we do it here
+# should also add standard passport photo settings here so it's all automated
+os.system('gphoto2 --set-config capturetarget=1')
+
 # image width/height settings for image processing
 p = 2
 bufferSize = 8
 plot_seq = True
 plot_results = True
-capture = True
 class cam_settings:
-    scale = 5
+    # increase scale for plotting high res images for testing, slows processing down
+    scale = 3
     w,h = 64*scale,48*scale
     zoom = (0.3,0.3,0.4,0.4)
+    rotation = 180
     video_port = True
-    burst = True
-    if video_port==True: burst=False # cannot use both..
+    # if we dont want to use video port we will use burst setting
+    if video_port==True: burst=False 
+    else: burst = True
 
 # filter kernals
 dataType = np.float32
@@ -39,7 +48,7 @@ fyr = np.array([[-1],
                 [ 1], 
                 [ 0]],dtype=dataType)
 
-# pre-compute integrartion kernal
+# pre-compute integrartion kernal, depends only on image size and filter kernals
 g = fun.calculate_g(cam_settings.h,cam_settings.w,p,dataType)
 
 # init buffer 
@@ -51,9 +60,10 @@ print("first init takes {}'s".format(t2-t1))
 while(True):
     t1 = time.time()
     # init camera and settings ready for each photo 
-    camera = picamera.PiCamera()
-    camera.resolution = (cam_settings.w,cam_settings.h)
-    camera.zoom = cam_settings.zoom
+    picam = picamera.PiCamera()
+    picam.resolution = (cam_settings.w,cam_settings.h)
+    picam.zoom = cam_settings.zoom
+    picam.rotation = cam_settings.rotation
     Cannon = gp.Camera()
     Cannon.init()
         
@@ -61,23 +71,23 @@ while(True):
     LED_array_bus = SMBus(1)
     fun.init_LED_array(LED_array_bus)
     t2 = time.time()
-    print("second init takes {}'s".format(t2-t1))
+    print("second init takes {}'s".format(t2-t1))   
     
-    fun.capture_image(Cannon)
-    # wait for capture signal
-    camera.start_preview()
-    while(1):
-        input()
-        break
-    camera.stop_preview()
-  
+    # wait for trigger, show camera preview for aligning picam and array
+    picam.start_preview()
+    fun.wait()
+    picam.stop_preview()
+
+    # take photo to compare result
+    fun.capture_image(Cannon)  
+
     # once we are ready for capture, set off flash and capture sequence
+    t0 = time.time()
     pool = Pool(4)
-    fp = pool.apply_async(fun.sweep_LED,(50,LED_array_bus))
-    fun.capture_seq(camera,buffer,cam_settings)
-    print("Processing images")
+    fp = pool.apply_async(fun.sweep_LED,(80,LED_array_bus))
+    fun.capture_seq(picam,buffer,cam_settings)
     t1 = time.time()
-    # extract Y (grey scale) component and pad with zeros
+    # extract Y (grey scale) component and pad with zeros before filtering
     Y = [im[:cam_settings.w*cam_settings.h].reshape((cam_settings.h,cam_settings.w)) for im in buffer]
     Y = [np.pad(im,p,'constant',constant_values=0) for im in Y]
     logY = [np.log1p(im) for im in Y]
@@ -98,26 +108,33 @@ while(True):
 
     # create the shadow map
     smap = 255-fun.gs(logL)
-    smap = smap*(smap>160)
+    # need more adaptive threshold
+    smap = smap*(smap>120)
     
     # resize image for shadow map
     led_values = fun.gs(resize(np.uint8(smap),(8, 12)))
-    led_values = np.uint8(led_values - 0.5*led_values)
+    # reduce brightness by 10% before lighting up
+    led_values = np.uint8(led_values - 0.1*led_values)
     t2 = time.time()
-    print("images processed and sent to LED, time taken: {}'s".format(t2-t1))
+    print("Time for shadow detection: {}'s".format(t2-t1))
     
     # drive LED array and capture image
+    t1 = time.time()
     fun.drive_LED(led_values,LED_array_bus)
     fun.capture_image(Cannon)
     fun.disable_PCA()
+    t2 = time.time()
+    print("Time for shadow removal and image capture: {}'s".format(t2-t1))
     print(led_values)
     # close camera to avoid memeory issues
-    camera.close()
+    
+    tend = time.time()
+    print("Time from trigger to result: {}'s".format(tend-t0))
+    picam.close()
     LED_array_bus.close()
     pool.close()
     pool.join()
     Cannon.exit()
-    capture = False
     
     # plot for testing
     if plot_seq:
@@ -126,7 +143,7 @@ while(True):
             fig.add_subplot(4,4,i+1)
             plt.imshow(im, cmap=plt.cm.gray)
         plt.show()
-        plt.savefig("sequence")
+        fig.savefig("sequence")
     if plot_results:
         fig = plt.figure()
         fig.add_subplot(2,3,1)
@@ -148,7 +165,7 @@ while(True):
         plt.imshow(led_values, cmap=plt.cm.gray)
         plt.title("LED_values")
         plt.show()
-        plt.savefig("results")
+        fig.savefig("results")
                 
         
     ex = input("Quit? (y/n)\n")
