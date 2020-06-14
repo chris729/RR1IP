@@ -7,6 +7,8 @@ from scipy import signal
 import RPi.GPIO as GPIO
 from smbus2 import SMBus, i2c_msg 
 from PCA_Constants import *
+import gphoto2 as gp
+import os
 
 # consts
 OE_PIN = 7
@@ -103,10 +105,12 @@ def sweep_LED(intensity,bus):
     print("sweep starting: {}".format(t1))
     light_column(0,intensity,bus)
     for i in range(1,12):
-        light_column(i-1,0,bus)
         light_column(i,intensity,bus)
         time.sleep(0.01)
-    light_column(i,0,bus)
+    light_column(0,0,bus)
+    for i in range(1,12):
+        light_column(i,0,bus)
+        time.sleep(0.01)
     t2 = time.time()
     print("time taken for sweep: {}'s".format(t2-t1))
     return True
@@ -149,6 +153,6 @@ def wait():
 
 
 # captures the final image
-def capture_image():
-
+def capture_image(Cannon):
+    path = Cannon.capture(gp.GP_CAPTURE_IMAGE)
     return True
