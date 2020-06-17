@@ -27,9 +27,9 @@ plot_seq = True
 plot_results = True
 class cam_settings:
     # increase scale for plotting high res images for testing, slows processing down
-    scale = 3
+    scale = 5
     w,h = 64*scale,48*scale
-    zoom = (0.3,0.3,0.4,0.4)
+    zoom = (0.25,0.25,0.35,0.35)
     rotation = 180
     video_port = True
     # if we dont want to use video port we will use burst setting
@@ -79,12 +79,12 @@ while(True):
     picam.stop_preview()
 
     # take photo to compare result
-    fun.capture_image(Cannon)  
+    im1 = fun.capture_image(Cannon)  
 
     # once we are ready for capture, set off flash and capture sequence
     t0 = time.time()
     pool = Pool(4)
-    fp = pool.apply_async(fun.sweep_LED,(80,LED_array_bus))
+    fp = pool.apply_async(fun.sweep_LED,(100,LED_array_bus))
     fun.capture_seq(picam,buffer,cam_settings)
     t1 = time.time()
     # extract Y (grey scale) component and pad with zeros before filtering
@@ -109,19 +109,19 @@ while(True):
     # create the shadow map
     smap = 255-fun.gs(logL)
     # need more adaptive threshold
-    smap = smap*(smap>120)
+    smap = smap*(smap>140)
     
     # resize image for shadow map
     led_values = fun.gs(resize(np.uint8(smap),(8, 12)))
-    # reduce brightness by 10% before lighting up
-    led_values = np.uint8(led_values - 0.1*led_values)
+    # reduce brightness by 0% before lighting up
+    led_values = np.uint8(led_values - 0*led_values)
     t2 = time.time()
     print("Time for shadow detection: {}'s".format(t2-t1))
     
     # drive LED array and capture image
     t1 = time.time()
     fun.drive_LED(led_values,LED_array_bus)
-    fun.capture_image(Cannon)
+    im2 = fun.capture_image(Cannon)
     fun.disable_PCA()
     t2 = time.time()
     print("Time for shadow removal and image capture: {}'s".format(t2-t1))
@@ -172,9 +172,10 @@ while(True):
     if ex == "n":
         pass
     else:
+        # if existing get the two latest photos for comparison
+        os.system('gphoto2 --get-file '+im1.folder+'/'+im1.name)
+        os.system('gphoto2 --get-file '+im2.folder+'/'+im2.name)
         break
-
-
 
 
 

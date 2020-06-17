@@ -163,4 +163,4 @@ def wait():
 # captures the final image
 def capture_image(Cannon):
     path = Cannon.capture(gp.GP_CAPTURE_IMAGE)
-    return True
+    return path
